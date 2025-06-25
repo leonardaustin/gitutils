@@ -26,7 +26,7 @@ To use GoGet, simply follow these steps:
 2. Install the GoGet command-line tool.
 
 ```shell
-go install github.com/leonardaustin/goget@lastest
+go install github.com/leonardaustin/goget@latest
 goget github.com/orgname/repo1
 ```
 
