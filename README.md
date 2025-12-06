@@ -26,24 +26,24 @@ To use GoGet, simply follow these steps:
 2. Install the GoGet command-line tool.
 
 ```shell
-go install github.com/leonardaustin/goget@lastest
+go install github.com/leonardaustin/goget@latest
 goget github.com/orgname/repo1
 ```
 
-
 ## How GoGet Works
+
 GoGet extracts the base domain from the repository URL you provide and clones the repository into the desired path. It dynamically determines the correct organization and repository names to create a clean directory structure.
 
-For exmaple, cloning any Git repository
-To clone a Git repository and store it in a predefined path, use the GoGet command followed by the repository URL:
+For example, cloning any Git repository:
 
 ```shell
 goget github.com/orgname/repo1
 ```
 
-GoGet will clone the repository github.com/orgname/repo1 and save it to the path ~/src/github.com/orgname.
+GoGet will clone the repository `github.com/orgname/repo1` and save it to `~/src/github.com/orgname/repo1`.
 
 ## Disclaimer
+
 GoGet is not affiliated with or endorsed by the official Go project or the go get command. It's a fun and independent project developed to enhance repository cloning experiences.
 
 ---
