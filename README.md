@@ -34,14 +34,13 @@ goget github.com/orgname/repo1
 
 GoGet extracts the base domain from the repository URL you provide and clones the repository into the desired path. It dynamically determines the correct organization and repository names to create a clean directory structure.
 
-For exmaple, cloning any Git repository
-To clone a Git repository and store it in a predefined path, use the GoGet command followed by the repository URL:
+For example, to clone a Git repository and store it in a predefined path, use the GoGet command followed by the repository URL:
 
 ```shell
 goget github.com/orgname/repo1
 ```
 
-GoGet will clone the repository github.com/orgname/repo1 and save it to the path ~/src/github.com/orgname.
+GoGet will clone the repository `github.com/orgname/repo1` and save it to `~/src/github.com/orgname/repo1`.
 
 ## Disclaimer
 
