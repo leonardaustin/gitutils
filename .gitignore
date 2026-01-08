@@ -1,0 +1,44 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go build cache
+/bin/
+/dist/
+
+# Go workspace (if not committing)
+go.work
+go.work.sum
+
+# Dependency directories (if vendoring separately)
+# vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Test coverage
+*.coverprofile
+coverage.out
+coverage.html
+
+# Debug
+__debug_bin*
+
+# Environment
+.env
+.env.local
