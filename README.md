@@ -21,3 +21,15 @@ Concurrently fetch and pull all Git repositories in a directory.
 go install github.com/leonardaustin/goget/gitpullall@latest
 gitpullall -dir ~/src/github.com
 ```
+
+### [gitcloneall](./gitcloneall/)
+
+Clone all repositories from a GitHub organization concurrently. Supports configuration persistence, dry runs, filtering, and SSH/HTTPS cloning.
+
+```shell
+go install github.com/leonardaustin/goget/gitcloneall@latest
+gitcloneall init -org mycompany
+gitcloneall clone
+```
+
+Requires [GitHub CLI (`gh`)](https://cli.github.com/) to be installed and authenticated.
