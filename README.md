@@ -9,7 +9,7 @@ A collection of command-line tools for managing Git repositories.
 Clone any Git repository into `~/src/{domain}/{org}/{repo}`. A modern replacement for the classic `go get` cloning behavior.
 
 ```shell
-go install github.com/leonardaustin/goget/goget@latest
+go install github.com/leonardaustin/gitutils/goget@latest
 goget github.com/golang/go
 ```
 
@@ -18,7 +18,7 @@ goget github.com/golang/go
 Concurrently fetch and pull all Git repositories in a directory.
 
 ```shell
-go install github.com/leonardaustin/goget/gitpullall@latest
+go install github.com/leonardaustin/gitutils/gitpullall@latest
 gitpullall -dir ~/src/github.com
 ```
 
@@ -27,7 +27,7 @@ gitpullall -dir ~/src/github.com
 Clone all repositories from a GitHub organization concurrently. Supports configuration persistence, dry runs, filtering, and SSH/HTTPS cloning.
 
 ```shell
-go install github.com/leonardaustin/goget/gitcloneall@latest
+go install github.com/leonardaustin/gitutils/gitcloneall@latest
 gitcloneall init -org mycompany
 gitcloneall clone
 ```

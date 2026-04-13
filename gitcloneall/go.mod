@@ -1,3 +1,3 @@
-module github.com/leonardaustin/goget/gitcloneall
+module github.com/leonardaustin/gitutils/gitcloneall
 
 go 1.21
