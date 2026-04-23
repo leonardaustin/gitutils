@@ -259,6 +259,31 @@ func TestFormatGitError_NonExitError(t *testing.T) {
 	}
 }
 
+func TestGitCloneArgs(t *testing.T) {
+	cloneURL := "https://github.com/golang/go"
+	destPath := "/tmp/go"
+
+	got := gitCloneArgs(cloneURL, destPath)
+	want := []string{
+		"clone",
+		"--progress",
+		"--single-branch",
+		"--depth", "1",
+		cloneURL,
+		destPath,
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("gitCloneArgs() len = %d, want %d (%v)", len(got), len(want), got)
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("gitCloneArgs()[%d] = %q, want %q (full args: %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
 func TestParseGitProgress(t *testing.T) {
 	tests := []struct {
 		name          string
