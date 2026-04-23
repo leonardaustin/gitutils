@@ -97,7 +97,7 @@ func gitClone(repoURL, destPath string) error {
 
 	// Execute git clone with HTTPS protocol
 	cloneURL := "https://" + repoURL
-	cmd := exec.Command("git", "clone", "--progress", cloneURL, destPath)
+	cmd := exec.Command("git", gitCloneArgs(cloneURL, destPath)...)
 	cmd.Stdout = os.Stdout
 	progressWriter := newGitProgressWriter(os.Stderr)
 	defer progressWriter.Finish()
@@ -108,6 +108,17 @@ func gitClone(repoURL, destPath string) error {
 		return formatGitError(err, cloneURL)
 	}
 	return nil
+}
+
+func gitCloneArgs(cloneURL, destPath string) []string {
+	return []string{
+		"clone",
+		"--progress",
+		"--single-branch",
+		"--depth", "1",
+		cloneURL,
+		destPath,
+	}
 }
 
 // formatGitError converts git exit codes into user-friendly error messages.

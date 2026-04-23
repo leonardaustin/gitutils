@@ -43,6 +43,7 @@ goget git://github.com/torvalds/linux
 - **Any Git repository** — works with Go and non-Go projects alike
 - **Multiple URL formats** — handles HTTPS, HTTP, SSH (`git@`), and `git://` protocols
 - **Clean paths** — automatically strips `.git` suffix and normalizes URLs
+- **Shallow default clones** — fetches only the remote HEAD branch with `--single-branch --depth 1`
 - **Safe operation** — won't overwrite existing repositories
 - **Clone progress** — shows live percentage updates while Git downloads objects
 - **Helpful errors** — provides clear messages for common failures (auth issues, network problems, invalid URLs)
@@ -52,7 +53,7 @@ goget git://github.com/torvalds/linux
 1. Normalizes the input URL (strips protocol prefixes, converts SSH format, removes `.git` suffix)
 2. Extracts domain, organization, and repository name
 3. Creates the directory structure under `~/src/`
-4. Clones the repository using HTTPS
+4. Clones the repository using HTTPS as a shallow single-branch clone
 
 ## Requirements
 
