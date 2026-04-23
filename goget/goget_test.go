@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -231,7 +233,7 @@ func TestFormatGitError(t *testing.T) {
 			case 129:
 				cmd = exec.Command("sh", "-c", "exit 129")
 			default:
-				cmd = exec.Command("sh", "-c", "exit "+string(rune('0'+tt.exitCode/10))+string(rune('0'+tt.exitCode%10)))
+				cmd = exec.Command("sh", "-c", fmt.Sprintf("exit %d", tt.exitCode))
 			}
 
 			err := cmd.Run()
@@ -254,5 +256,121 @@ func TestFormatGitError_NonExitError(t *testing.T) {
 
 	if result != originalErr {
 		t.Errorf("formatGitError with non-ExitError should return original error, got %v", result)
+	}
+}
+
+func TestParseGitProgress(t *testing.T) {
+	tests := []struct {
+		name          string
+		line          string
+		expectedStage string
+		expectedLine  string
+		expectedOK    bool
+	}{
+		{
+			name:          "receiving objects",
+			line:          "Receiving objects:  42% (42/100), 1.23 MiB | 1.23 MiB/s",
+			expectedStage: "Receiving objects",
+			expectedLine:  "Receiving objects: 42% (42/100), 1.23 MiB | 1.23 MiB/s",
+			expectedOK:    true,
+		},
+		{
+			name:          "remote counting objects",
+			line:          "remote: Counting objects: 100% (10/10), done.",
+			expectedStage: "Counting objects",
+			expectedLine:  "Counting objects: 100% (10/10), done.",
+			expectedOK:    true,
+		},
+		{
+			name:       "non progress line",
+			line:       "Cloning into '/tmp/repo'...",
+			expectedOK: false,
+		},
+		{
+			name:       "fatal error line",
+			line:       "fatal: repository 'https://example.com/repo' not found",
+			expectedOK: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stage, line, ok := parseGitProgress(tt.line)
+			if ok != tt.expectedOK {
+				t.Fatalf("parseGitProgress(%q) ok = %v, expected %v", tt.line, ok, tt.expectedOK)
+			}
+
+			if !tt.expectedOK {
+				return
+			}
+
+			if stage != tt.expectedStage || line != tt.expectedLine {
+				t.Fatalf(
+					"parseGitProgress(%q) = (%q, %q), expected (%q, %q)",
+					tt.line,
+					stage,
+					line,
+					tt.expectedStage,
+					tt.expectedLine,
+				)
+			}
+		})
+	}
+}
+
+func TestGitProgressWriterFormatsStages(t *testing.T) {
+	var output bytes.Buffer
+	writer := newGitProgressWriter(&output)
+
+	chunks := []string{
+		"Cloning into '/tmp/repo'...\n",
+		"remote: Counting objects:  50% (1/2)\rremote: Counting objects: 100% (2/2), done.\r",
+		"Receiving objects:  25% (1/4)\rReceiving objects: 100% (4/4), done.\r",
+		"Resolving deltas: 100% (1/1), done.\n",
+	}
+
+	for _, chunk := range chunks {
+		if _, err := writer.Write([]byte(chunk)); err != nil {
+			t.Fatalf("writer.Write() error = %v", err)
+		}
+	}
+
+	if err := writer.Finish(); err != nil {
+		t.Fatalf("writer.Finish() error = %v", err)
+	}
+
+	got := output.String()
+	expectedParts := []string{
+		"Cloning into '/tmp/repo'...\n",
+		"\rCounting objects: 50% (1/2)",
+		"\rCounting objects: 100% (2/2), done.",
+		"\n\rReceiving objects: 25% (1/4)",
+		"\rReceiving objects: 100% (4/4), done.",
+		"\n\rResolving deltas: 100% (1/1), done.\n",
+	}
+
+	for _, part := range expectedParts {
+		if !strings.Contains(got, part) {
+			t.Fatalf("progress output %q does not contain %q", got, part)
+		}
+	}
+}
+
+func TestGitProgressWriterEndsProgressBeforeErrors(t *testing.T) {
+	var output bytes.Buffer
+	writer := newGitProgressWriter(&output)
+
+	input := "Receiving objects: 100% (1/1), done.\rfatal: repository 'https://example.com/repo' not found\n"
+	if _, err := writer.Write([]byte(input)); err != nil {
+		t.Fatalf("writer.Write() error = %v", err)
+	}
+
+	if err := writer.Finish(); err != nil {
+		t.Fatalf("writer.Finish() error = %v", err)
+	}
+
+	got := output.String()
+	if !strings.Contains(got, "\rReceiving objects: 100% (1/1), done.\nfatal: repository 'https://example.com/repo' not found\n") {
+		t.Fatalf("progress output %q did not preserve the fatal error after finishing the progress line", got)
 	}
 }

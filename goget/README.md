@@ -44,6 +44,7 @@ goget git://github.com/torvalds/linux
 - **Multiple URL formats** — handles HTTPS, HTTP, SSH (`git@`), and `git://` protocols
 - **Clean paths** — automatically strips `.git` suffix and normalizes URLs
 - **Safe operation** — won't overwrite existing repositories
+- **Clone progress** — shows live percentage updates while Git downloads objects
 - **Helpful errors** — provides clear messages for common failures (auth issues, network problems, invalid URLs)
 
 ## How It Works
