@@ -261,25 +261,25 @@ func TestFormatGitError_NonExitError(t *testing.T) {
 
 func TestParseGitProgress(t *testing.T) {
 	tests := []struct {
-		name            string
-		line            string
-		expectedStage   string
-		expectedPercent string
-		expectedOK      bool
+		name          string
+		line          string
+		expectedStage string
+		expectedLine  string
+		expectedOK    bool
 	}{
 		{
-			name:            "receiving objects",
-			line:            "Receiving objects:  42% (42/100), 1.23 MiB | 1.23 MiB/s",
-			expectedStage:   "Receiving objects",
-			expectedPercent: "42",
-			expectedOK:      true,
+			name:          "receiving objects",
+			line:          "Receiving objects:  42% (42/100), 1.23 MiB | 1.23 MiB/s",
+			expectedStage: "Receiving objects",
+			expectedLine:  "Receiving objects: 42% (42/100), 1.23 MiB | 1.23 MiB/s",
+			expectedOK:    true,
 		},
 		{
-			name:            "remote counting objects",
-			line:            "remote: Counting objects: 100% (10/10), done.",
-			expectedStage:   "Counting objects",
-			expectedPercent: "100",
-			expectedOK:      true,
+			name:          "remote counting objects",
+			line:          "remote: Counting objects: 100% (10/10), done.",
+			expectedStage: "Counting objects",
+			expectedLine:  "Counting objects: 100% (10/10), done.",
+			expectedOK:    true,
 		},
 		{
 			name:       "non progress line",
@@ -295,7 +295,7 @@ func TestParseGitProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stage, percent, ok := parseGitProgress(tt.line)
+			stage, line, ok := parseGitProgress(tt.line)
 			if ok != tt.expectedOK {
 				t.Fatalf("parseGitProgress(%q) ok = %v, expected %v", tt.line, ok, tt.expectedOK)
 			}
@@ -304,14 +304,14 @@ func TestParseGitProgress(t *testing.T) {
 				return
 			}
 
-			if stage != tt.expectedStage || percent != tt.expectedPercent {
+			if stage != tt.expectedStage || line != tt.expectedLine {
 				t.Fatalf(
 					"parseGitProgress(%q) = (%q, %q), expected (%q, %q)",
 					tt.line,
 					stage,
-					percent,
+					line,
 					tt.expectedStage,
-					tt.expectedPercent,
+					tt.expectedLine,
 				)
 			}
 		})
@@ -342,11 +342,11 @@ func TestGitProgressWriterFormatsStages(t *testing.T) {
 	got := output.String()
 	expectedParts := []string{
 		"Cloning into '/tmp/repo'...\n",
-		"\rCounting objects: 50%",
-		"\rCounting objects: 100%",
-		"\n\rReceiving objects: 25%",
-		"\rReceiving objects: 100%",
-		"\n\rResolving deltas: 100%\n",
+		"\rCounting objects: 50% (1/2)",
+		"\rCounting objects: 100% (2/2), done.",
+		"\n\rReceiving objects: 25% (1/4)",
+		"\rReceiving objects: 100% (4/4), done.",
+		"\n\rResolving deltas: 100% (1/1), done.\n",
 	}
 
 	for _, part := range expectedParts {
@@ -370,7 +370,7 @@ func TestGitProgressWriterEndsProgressBeforeErrors(t *testing.T) {
 	}
 
 	got := output.String()
-	if !strings.Contains(got, "\rReceiving objects: 100%\nfatal: repository 'https://example.com/repo' not found\n") {
+	if !strings.Contains(got, "\rReceiving objects: 100% (1/1), done.\nfatal: repository 'https://example.com/repo' not found\n") {
 		t.Fatalf("progress output %q did not preserve the fatal error after finishing the progress line", got)
 	}
 }

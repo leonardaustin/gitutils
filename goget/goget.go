@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-var gitProgressPattern = regexp.MustCompile(`^(?:remote:\s+)?([^:]+):\s+(\d+)%`)
+var gitProgressPattern = regexp.MustCompile(`^(?:remote:\s+)?([^:]+):\s+(\d+%.*)$`)
 
 func main() {
 	if len(os.Args) != 2 {
@@ -141,21 +141,22 @@ func formatGitError(err error, cloneURL string) error {
 	}
 }
 
-func parseGitProgress(line string) (stage, percent string, ok bool) {
+func parseGitProgress(line string) (stage, display string, ok bool) {
 	matches := gitProgressPattern.FindStringSubmatch(strings.TrimSpace(line))
 	if len(matches) != 3 {
 		return "", "", false
 	}
 
-	return matches[1], matches[2], true
+	stage = matches[1]
+	return stage, stage + ": " + matches[2], true
 }
 
 type gitProgressWriter struct {
-	out         io.Writer
-	buffer      bytes.Buffer
-	active      bool
-	lastStage   string
-	lastPercent string
+	out       io.Writer
+	buffer    bytes.Buffer
+	active    bool
+	lastStage string
+	lastLine  string
 }
 
 func newGitProgressWriter(out io.Writer) *gitProgressWriter {
@@ -163,16 +164,28 @@ func newGitProgressWriter(out io.Writer) *gitProgressWriter {
 }
 
 func (w *gitProgressWriter) Write(p []byte) (int, error) {
-	for _, b := range p {
-		switch b {
-		case '\r', '\n':
-			if err := w.flushLine(); err != nil {
+	start := 0
+	for i, b := range p {
+		if b != '\r' && b != '\n' {
+			continue
+		}
+
+		if i > start {
+			if _, err := w.buffer.Write(p[start:i]); err != nil {
 				return 0, err
 			}
-		default:
-			if err := w.buffer.WriteByte(b); err != nil {
-				return 0, err
-			}
+		}
+
+		if err := w.flushLine(); err != nil {
+			return 0, err
+		}
+
+		start = i + 1
+	}
+
+	if start < len(p) {
+		if _, err := w.buffer.Write(p[start:]); err != nil {
+			return 0, err
 		}
 	}
 
@@ -206,8 +219,8 @@ func (w *gitProgressWriter) flushLine() error {
 		return nil
 	}
 
-	if stage, percent, ok := parseGitProgress(trimmedLine); ok {
-		return w.writeProgress(stage, percent)
+	if stage, display, ok := parseGitProgress(trimmedLine); ok {
+		return w.writeProgress(stage, display)
 	}
 
 	if w.active {
@@ -221,28 +234,28 @@ func (w *gitProgressWriter) flushLine() error {
 	return err
 }
 
-func (w *gitProgressWriter) writeProgress(stage, percent string) error {
+func (w *gitProgressWriter) writeProgress(stage, line string) error {
 	if w.active && w.lastStage != stage {
 		if _, err := fmt.Fprintln(w.out); err != nil {
 			return err
 		}
 	}
 
-	if w.lastStage == stage && w.lastPercent == percent {
+	if w.lastLine == line {
 		w.active = true
 		return nil
 	}
 
 	w.active = true
 	w.lastStage = stage
-	w.lastPercent = percent
+	w.lastLine = line
 
-	_, err := fmt.Fprintf(w.out, "\r%s: %s%%", stage, percent)
+	_, err := fmt.Fprintf(w.out, "\r%s", line)
 	return err
 }
 
 func (w *gitProgressWriter) resetProgress() {
 	w.active = false
 	w.lastStage = ""
-	w.lastPercent = ""
+	w.lastLine = ""
 }
