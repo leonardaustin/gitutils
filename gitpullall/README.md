@@ -5,7 +5,7 @@ Concurrently fetch and pull all Git repositories in a directory. Perfect for kee
 ## Installation
 
 ```shell
-go install github.com/leonardaustin/goget/gitpullall@latest
+go install github.com/leonardaustin/gitutils/gitpullall@latest
 ```
 
 ## Usage
@@ -28,6 +28,9 @@ gitpullall -verbose
 
 # Longer timeout for large repos
 gitpullall -timeout 10m
+
+# Checkout main before pulling each clean repo
+gitpullall -main
 ```
 
 ## Options
@@ -39,11 +42,13 @@ gitpullall -timeout 10m
 | `-timeout` | `5m`    | Timeout per repository                    |
 | `-dry-run` | `false` | Show what would be done without executing |
 | `-verbose` | `false` | Show detailed output                      |
+| `-main`    | `false` | Checkout `main` before pulling clean repos |
 
 ## Features
 
 - **Parallel processing** — configurable worker pool for fast batch updates
 - **Smart pulling** — tries fast-forward first, falls back to rebase
+- **Optional main checkout** — checkout `main` before pulling with `-main`
 - **Safe with uncommitted changes** — fetches only, won't disrupt your work
 - **Prunes stale branches** — removes deleted remote-tracking branches
 - **Graceful shutdown** — Ctrl+C stops cleanly without leaving repos in bad states
@@ -55,9 +60,10 @@ gitpullall -timeout 10m
 1. Scans the target directory for immediate subdirectories containing `.git`
 2. For each repository:
    - Fetches from all remotes with pruning
+   - If `-main` is set and the working tree is clean: checks out `main`
    - Checks if behind upstream
    - If clean working tree: pulls changes (fast-forward or rebase)
-   - If uncommitted changes: reports status without pulling
+   - If uncommitted changes: reports status without checking out or pulling
 3. Prints a summary with counts and any failures
 
 ## Example Output
