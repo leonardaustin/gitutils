@@ -29,6 +29,7 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "show what would be done without executing")
 	targetDir := flag.String("dir", ".", "directory containing git repositories")
 	checkoutMain := flag.Bool("main", false, "checkout main before pulling")
+	force := flag.Bool("force", false, "discard tracked changes with git reset --hard before pulling")
 	flag.Parse()
 
 	// Handle graceful shutdown
@@ -67,6 +68,9 @@ func main() {
 	if *checkoutMain {
 		fmt.Println("🌿 Will checkout main before pulling")
 	}
+	if *force {
+		fmt.Println("⚠️  Will reset --hard dirty repositories before pulling")
+	}
 	fmt.Println()
 
 	if *dryRun {
@@ -78,7 +82,7 @@ func main() {
 	}
 
 	// Process repositories concurrently
-	results := processRepos(ctx, repos, *maxWorkers, *timeout, *verbose, *checkoutMain)
+	results := processRepos(ctx, repos, *maxWorkers, *timeout, *verbose, *checkoutMain, *force)
 
 	// Print summary
 	printSummary(results)
@@ -114,7 +118,7 @@ func findGitRepos(baseDir string) ([]string, error) {
 	return repos, nil
 }
 
-func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout time.Duration, verbose bool, checkoutMain bool) []Result {
+func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout time.Duration, verbose bool, checkoutMain bool, force bool) []Result {
 	var wg sync.WaitGroup
 	results := make([]Result, len(repos))
 	semaphore := make(chan struct{}, maxWorkers)
@@ -138,7 +142,7 @@ func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout t
 				return
 			}
 
-			results[idx] = processRepo(ctx, repoPath, timeout, verbose, checkoutMain)
+			results[idx] = processRepo(ctx, repoPath, timeout, verbose, checkoutMain, force)
 		}(i, repo)
 	}
 
@@ -146,7 +150,7 @@ func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout t
 	return results
 }
 
-func processRepo(ctx context.Context, repoPath string, timeout time.Duration, verbose bool, checkoutMain bool) Result {
+func processRepo(ctx context.Context, repoPath string, timeout time.Duration, verbose bool, checkoutMain bool, force bool) Result {
 	repoName := filepath.Base(repoPath)
 	result := Result{Dir: repoName}
 
@@ -186,6 +190,29 @@ func processRepo(ctx context.Context, repoPath string, timeout time.Duration, ve
 	}
 
 	hasChanges := len(strings.TrimSpace(status)) > 0
+	if force && hasChanges {
+		if verbose {
+			fmt.Printf("⚠️  %s: resetting dirty working tree...\n", repoName)
+		}
+
+		if _, err := runGitCommand(ctx, repoPath, "reset", "--hard"); err != nil {
+			result.Success = false
+			result.Message = "reset --hard failed"
+			result.Error = err
+			fmt.Printf("❌ %s: %s - %v\n", repoName, result.Message, err)
+			return result
+		}
+
+		status, err = runGitCommand(ctx, repoPath, "status", "--porcelain")
+		if err != nil {
+			result.Success = false
+			result.Message = "failed to check status after reset"
+			result.Error = err
+			fmt.Printf("❌ %s: %s\n", repoName, result.Message)
+			return result
+		}
+		hasChanges = len(strings.TrimSpace(status)) > 0
+	}
 
 	// Fetch from remote
 	if verbose {

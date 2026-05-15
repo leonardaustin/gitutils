@@ -23,7 +23,7 @@ func TestProcessRepoCheckoutMainPullsMain(t *testing.T) {
 	runTestGit(t, seedRepo, "commit", "-m", "update readme")
 	runTestGit(t, seedRepo, "push")
 
-	result := processRepo(context.Background(), repo, time.Minute, false, true)
+	result := processRepo(context.Background(), repo, time.Minute, false, true, false)
 	if !result.Success {
 		t.Fatalf("processRepo failed: %s: %v", result.Message, result.Error)
 	}
@@ -51,7 +51,7 @@ func TestProcessRepoCheckoutMainSkipsDirtyRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := processRepo(context.Background(), repo, time.Minute, false, true)
+	result := processRepo(context.Background(), repo, time.Minute, false, true, false)
 	if !result.Success {
 		t.Fatalf("processRepo failed: %s: %v", result.Message, result.Error)
 	}
@@ -62,6 +62,35 @@ func TestProcessRepoCheckoutMainSkipsDirtyRepo(t *testing.T) {
 	branch := strings.TrimSpace(runTestGit(t, repo, "rev-parse", "--abbrev-ref", "HEAD"))
 	if branch != "feature" {
 		t.Fatalf("expected dirty repo to stay on feature, got %q", branch)
+	}
+}
+
+func TestProcessRepoForceResetsDirtyTrackedRepo(t *testing.T) {
+	tmpDir := t.TempDir()
+	seedRepo, repo := setupRemoteBackedRepo(t, tmpDir)
+
+	if err := os.WriteFile(filepath.Join(seedRepo, "README.md"), []byte("v2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runTestGit(t, seedRepo, "add", "README.md")
+	runTestGit(t, seedRepo, "commit", "-m", "update readme")
+	runTestGit(t, seedRepo, "push")
+
+	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("local dirty change\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := processRepo(context.Background(), repo, time.Minute, false, false, true)
+	if !result.Success {
+		t.Fatalf("processRepo failed: %s: %v", result.Message, result.Error)
+	}
+
+	content, err := os.ReadFile(filepath.Join(repo, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "v2\n" {
+		t.Fatalf("expected dirty tracked file to reset and pull v2, got %q", string(content))
 	}
 }
 
