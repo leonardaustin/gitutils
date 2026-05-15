@@ -31,6 +31,9 @@ gitpullall -timeout 10m
 
 # Checkout main before pulling each clean repo
 gitpullall -main
+
+# Discard tracked local changes before pulling
+gitpullall -force
 ```
 
 ## Options
@@ -43,13 +46,17 @@ gitpullall -main
 | `-dry-run` | `false` | Show what would be done without executing |
 | `-verbose` | `false` | Show detailed output                      |
 | `-main`    | `false` | Checkout `main` before pulling clean repos |
+| `-force`   | `false` | Discard tracked changes before pulling     |
+
+`-force` runs `git reset --hard`; it does not remove untracked files.
 
 ## Features
 
 - **Parallel processing** — configurable worker pool for fast batch updates
 - **Smart pulling** — tries fast-forward first, falls back to rebase
 - **Optional main checkout** — checkout `main` before pulling with `-main`
-- **Safe with uncommitted changes** — fetches only, won't disrupt your work
+- **Optional force reset** — discard tracked local changes with `-force`
+- **Safe with uncommitted changes by default** — fetches only, won't disrupt your work
 - **Prunes stale branches** — removes deleted remote-tracking branches
 - **Graceful shutdown** — Ctrl+C stops cleanly without leaving repos in bad states
 - **Clear status indicators** — emoji-based output shows success ✅, warnings ⚠️, and failures ❌
@@ -59,6 +66,7 @@ gitpullall -main
 
 1. Scans the target directory for immediate subdirectories containing `.git`
 2. For each repository:
+   - If `-force` is set and the working tree is dirty: runs `git reset --hard`
    - Fetches from all remotes with pruning
    - If `-main` is set and the working tree is clean: checks out `main`
    - Checks if behind upstream
