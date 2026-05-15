@@ -28,6 +28,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "show detailed output")
 	dryRun := flag.Bool("dry-run", false, "show what would be done without executing")
 	targetDir := flag.String("dir", ".", "directory containing git repositories")
+	checkoutMain := flag.Bool("main", false, "checkout main before pulling")
 	flag.Parse()
 
 	// Handle graceful shutdown
@@ -62,7 +63,11 @@ func main() {
 	}
 
 	fmt.Printf("📂 Found %d git repositories in %s\n", len(repos), absTargetDir)
-	fmt.Printf("🔧 Using %d workers with %v timeout per repo\n\n", *maxWorkers, *timeout)
+	fmt.Printf("🔧 Using %d workers with %v timeout per repo\n", *maxWorkers, *timeout)
+	if *checkoutMain {
+		fmt.Println("🌿 Will checkout main before pulling")
+	}
+	fmt.Println()
 
 	if *dryRun {
 		fmt.Println("🔍 Dry run mode - would process:")
@@ -73,7 +78,7 @@ func main() {
 	}
 
 	// Process repositories concurrently
-	results := processRepos(ctx, repos, *maxWorkers, *timeout, *verbose)
+	results := processRepos(ctx, repos, *maxWorkers, *timeout, *verbose, *checkoutMain)
 
 	// Print summary
 	printSummary(results)
@@ -109,7 +114,7 @@ func findGitRepos(baseDir string) ([]string, error) {
 	return repos, nil
 }
 
-func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout time.Duration, verbose bool) []Result {
+func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout time.Duration, verbose bool, checkoutMain bool) []Result {
 	var wg sync.WaitGroup
 	results := make([]Result, len(repos))
 	semaphore := make(chan struct{}, maxWorkers)
@@ -133,7 +138,7 @@ func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout t
 				return
 			}
 
-			results[idx] = processRepo(ctx, repoPath, timeout, verbose)
+			results[idx] = processRepo(ctx, repoPath, timeout, verbose, checkoutMain)
 		}(i, repo)
 	}
 
@@ -141,7 +146,7 @@ func processRepos(ctx context.Context, repos []string, maxWorkers int, timeout t
 	return results
 }
 
-func processRepo(ctx context.Context, repoPath string, timeout time.Duration, verbose bool) Result {
+func processRepo(ctx context.Context, repoPath string, timeout time.Duration, verbose bool, checkoutMain bool) Result {
 	repoName := filepath.Base(repoPath)
 	result := Result{Dir: repoName}
 
@@ -194,6 +199,31 @@ func processRepo(ctx context.Context, repoPath string, timeout time.Duration, ve
 		result.Error = err
 		fmt.Printf("❌ %s: %s - %v\n", repoName, result.Message, err)
 		return result
+	}
+
+	if checkoutMain {
+		if hasChanges {
+			result.Success = true
+			result.Message = "fetched only - checkout main skipped (uncommitted changes)"
+			fmt.Printf("⚠️  %s: %s\n", repoName, result.Message)
+			return result
+		}
+
+		if branch != "main" {
+			if verbose {
+				fmt.Printf("🌿 %s: checking out main...\n", repoName)
+			}
+
+			if _, err := runGitCommand(ctx, repoPath, "checkout", "main"); err != nil {
+				result.Success = false
+				result.Message = "checkout main failed"
+				result.Error = err
+				fmt.Printf("❌ %s: %s - %v\n", repoName, result.Message, err)
+				return result
+			}
+		}
+
+		branch = "main"
 	}
 
 	// Check if we have an upstream configured
