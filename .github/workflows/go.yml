@@ -3,47 +3,91 @@ name: Go
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: go-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  test:
-    name: ${{ matrix.module }}
+  changes:
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        module:
-          - gitcloneall
-          - gitpullall
-          - goget
-
-    defaults:
-      run:
-        working-directory: ${{ matrix.module }}
-
+    timeout-minutes: 5
+    outputs:
+      run-go: ${{ steps.diff.outputs.run-go }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        if: github.event_name == 'pull_request'
         with:
-          go-version: stable
-          cache-dependency-path: ${{ matrix.module }}/go.mod
+          fetch-depth: 0
 
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          run_go=true
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]] &&
+             git diff --quiet --no-renames "$BASE...$HEAD" -- . ':(exclude,top)docs/**' ':(exclude,glob,top)**/*.md'; then
+            run_go=false
+          fi
+          echo "run-go=$run_go" >> "$GITHUB_OUTPUT"
+
+  go:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run-go != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MODULES: gitcloneall gitpullall goget
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: gitcloneall/go.mod
+          cache: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: gitpullall/go.mod
+          cache: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: goget/go.mod
+          cache-dependency-path: '*/go.mod'
+
+      - name: Check module files
+        run: |
+          for module in $MODULES; do
+            (cd "$module" && go mod tidy -diff)
+          done
 
       - name: Build
-        run: go build ./...
+        run: |
+          for module in $MODULES; do
+            (cd "$module" && go build ./...)
+          done
 
-      - name: Test
-        run: go test ./...
+      - run: make vulncheck
 
-      - name: Vulnerability check
-        run: $(go env GOPATH)/bin/govulncheck ./...
+      - name: Test with the race detector
+        run: |
+          for module in $MODULES; do
+            (cd "$module" && go test -race ./... -count=1)
+          done
+
+      - uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa # v7.0.1
+        with:
+          version: latest
+          working-directory: gitcloneall
+      - uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa # v7.0.1
+        with:
+          version: latest
+          working-directory: gitpullall
+      - uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa # v7.0.1
+        with:
+          version: latest
+          working-directory: goget
