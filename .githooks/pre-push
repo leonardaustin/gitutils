@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# git diff returns 1 for differences and >1 for errors.
+changed() {
+  local rc
+  git diff --quiet --no-renames "$@" && return 1
+  rc=$?
+  [[ $rc == 1 ]] || exit "$rc"
+}
+
+check_ref() (
+  local tip=$1 old=$2 base tmp name module
+  local -a lock=()
+  base=$(git merge-base "$tip" origin/main)
+  if [[ "$old" =~ ^0+$ ]] || ! git cat-file -e "${old}^{commit}" 2>/dev/null; then
+    old=$base
+  fi
+  changed "$old" "$tip" -- '*.go' ':(glob)**/go.mod' ':(glob)**/go.sum' .golangci.yml || return 0
+
+  # Check the pushed tree, including when another branch is checked out.
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/pre-push.XXXXXXXX")
+  trap 'rm -rf "$tmp"' EXIT
+  while read -r name; do unset "$name"; done < <(git rev-parse --local-env-vars)
+  git clone -q --shared --no-checkout . "$tmp/tree"
+  cd "$tmp/tree"
+  git checkout -q --detach "$tip"
+
+  for module in gitcloneall gitpullall goget; do
+    (cd "$module" && go mod tidy -diff)
+  done
+  if command -v iddio >/dev/null && iddio lock list >/dev/null; then
+    lock=(iddio lock run heavy --)
+  fi
+  for module in gitcloneall gitpullall goget; do
+    (cd "$module" && ${lock[@]+"${lock[@]}"} golangci-lint run --new-from-rev="$base" ./...)
+  done
+)
+
+while read -r _ local_oid _ remote_oid; do
+  [[ "$local_oid" =~ ^0+$ ]] && continue
+  check_ref "$(git rev-parse --verify "${local_oid}^{commit}")" "$remote_oid"
+done
