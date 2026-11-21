@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -100,7 +101,10 @@ func gitClone(repoURL, destPath string) error {
 	cmd := exec.Command("git", gitCloneArgs(cloneURL, destPath)...)
 	cmd.Stdout = os.Stdout
 	progressWriter := newGitProgressWriter(os.Stderr)
-	defer progressWriter.Finish()
+	defer func() {
+		// Final progress output is best effort and does not affect the clone result.
+		_ = progressWriter.Finish()
+	}()
 	cmd.Stderr = progressWriter
 
 	err := cmd.Run()
@@ -124,8 +128,8 @@ func gitCloneArgs(cloneURL, destPath string) []string {
 // formatGitError converts git exit codes into user-friendly error messages.
 // Git uses specific exit codes to indicate different failure conditions.
 func formatGitError(err error, cloneURL string) error {
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
 		return err
 	}
 

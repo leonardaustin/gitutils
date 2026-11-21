@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -74,13 +75,8 @@ func TestNormalizeURL(t *testing.T) {
 }
 
 func TestGetDestPath(t *testing.T) {
-	// Save original HOME and restore after test
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-
-	// Set a predictable HOME for testing
 	testHome := "/home/testuser"
-	os.Setenv("HOME", testHome)
+	t.Setenv("HOME", testHome)
 
 	tests := []struct {
 		name     string
@@ -144,12 +140,8 @@ func TestNormalizeURLHandlesTrailingSlash(t *testing.T) {
 }
 
 func TestIntegration_NormalizeAndGetDestPath(t *testing.T) {
-	// Save original HOME and restore after test
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-
 	testHome := "/home/testuser"
-	os.Setenv("HOME", testHome)
+	t.Setenv("HOME", testHome)
 
 	tests := []struct {
 		name         string
@@ -254,7 +246,7 @@ func TestFormatGitError_NonExitError(t *testing.T) {
 	originalErr := os.ErrNotExist
 	result := formatGitError(originalErr, "https://example.com")
 
-	if result != originalErr {
+	if !errors.Is(result, originalErr) {
 		t.Errorf("formatGitError with non-ExitError should return original error, got %v", result)
 	}
 }
