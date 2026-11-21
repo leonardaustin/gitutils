@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -73,13 +74,13 @@ func main() {
 
 	switch os.Args[1] {
 	case "init":
-		initCmd.Parse(os.Args[2:])
+		_ = initCmd.Parse(os.Args[2:]) // ExitOnError handles parse failures.
 		handleInit(*initOrg, *initBranch, *initWorkers)
 	case "clone":
-		cloneCmd.Parse(os.Args[2:])
+		_ = cloneCmd.Parse(os.Args[2:]) // ExitOnError handles parse failures.
 		handleClone(*cloneOrg, *cloneBranch, *cloneWorkers, *cloneLimit, *cloneDir, *cloneDryRun, *cloneForce, *cloneSSH, *cloneFilter)
 	case "config":
-		configCmd.Parse(os.Args[2:])
+		_ = configCmd.Parse(os.Args[2:]) // ExitOnError handles parse failures.
 		if *configShow {
 			handleConfigShow()
 		} else {
@@ -262,7 +263,10 @@ func handleClone(org, branch string, workers, limit int, dir string, dryRun, for
 		fmt.Fprintf(os.Stderr, "❌ Error changing to directory %s: %v\n", dir, err)
 		os.Exit(1)
 	}
-	defer os.Chdir(originalDir)
+	defer func() {
+		// The command is finished, so restoring the directory is best effort.
+		_ = os.Chdir(originalDir)
+	}()
 
 	fmt.Printf("🔄 Fetching repository list from %s...\n", org)
 
@@ -341,7 +345,8 @@ func fetchRepos(org string, limit int) ([]Repo, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			return nil, fmt.Errorf("gh command failed: %s", string(exitErr.Stderr))
 		}
 		return nil, err
@@ -438,11 +443,11 @@ func cloneRepo(repo Repo, org, defaultBranch string, force, useSSH bool) CloneRe
 
 	// Clone with specific branch
 	cmd := exec.Command("git", "clone", "--branch", branch, "--single-branch", cloneURL)
-	output, err := cmd.CombinedOutput()
+	_, err := cmd.CombinedOutput()
 	if err != nil {
 		// Try without branch specification (repo might not have the branch)
 		cmd = exec.Command("git", "clone", cloneURL)
-		output, err = cmd.CombinedOutput()
+		output, err := cmd.CombinedOutput()
 		if err != nil {
 			result.Status = "failed"
 			result.Error = fmt.Errorf("clone failed: %s", strings.TrimSpace(string(output)))
@@ -478,7 +483,6 @@ func printProgress(result CloneResult) {
 func printSummary(results []CloneResult) {
 	var cloned, skipped, failed int
 	var failedRepos []CloneResult
-	var skippedRepos []CloneResult
 
 	for _, r := range results {
 		switch r.Status {
@@ -486,7 +490,6 @@ func printSummary(results []CloneResult) {
 			cloned++
 		case "skipped":
 			skipped++
-			skippedRepos = append(skippedRepos, r)
 		case "failed":
 			failed++
 			failedRepos = append(failedRepos, r)
@@ -500,13 +503,6 @@ func printSummary(results []CloneResult) {
 	fmt.Printf("☑️  Skipped: %d\n", skipped)
 	fmt.Printf("❌ Failed:  %d\n", failed)
 	fmt.Printf("📁 Total:   %d\n", len(results))
-
-	// if len(skippedRepos) > 0 {
-	// 	fmt.Println("\n☑️  Skipped repositories (already exist):")
-	// 	for _, r := range skippedRepos {
-	// 		fmt.Printf("   • %s\n", r.RepoName)
-	// 	}
-	// }
 
 	if len(failedRepos) > 0 {
 		fmt.Println("\n❌ Failed repositories:")

@@ -1,0 +1,25 @@
+version: "2"
+
+linters:
+  default: none
+  exclusions:
+    paths:
+      - (^|/)node_modules/
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unused
+    - errorlint
+    - nilerr
+    - bodyclose
+
+formatters:
+  exclusions:
+    paths:
+      - (^|/)node_modules/
+  enable:
+    - gofmt
+    - goimports
