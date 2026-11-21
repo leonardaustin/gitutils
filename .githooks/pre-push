@@ -10,11 +10,14 @@ changed() {
 }
 
 check_ref() (
-  local tip=$1 old=$2 base tmp name module
-  local -a lock=()
-  base=$(git merge-base "$tip" origin/main)
-  if [[ "$old" =~ ^0+$ ]] || ! git cat-file -e "${old}^{commit}" 2>/dev/null; then
-    old=$base
+  local tip=$1 old=$2 base='' main tmp name module
+  local -a lock=() lint_args=()
+  if main=$(git rev-parse -q --verify 'refs/remotes/origin/main^{commit}'); then
+    base=$(git merge-base "$tip" "$main") || base=
+  fi
+  if ! old=$(git rev-parse -q --verify "${old}^{commit}" 2>/dev/null); then
+    # With neither comparison commit, treat the pushed tree as new.
+    old=${base:-$(git hash-object -t tree /dev/null)}
   fi
   changed "$old" "$tip" -- '*.go' ':(glob)**/go.mod' ':(glob)**/go.sum' .golangci.yml || return 0
 
@@ -32,12 +35,15 @@ check_ref() (
   if command -v iddio >/dev/null && iddio lock list >/dev/null; then
     lock=(iddio lock run heavy --)
   fi
+  if [[ -n "$base" ]]; then
+    lint_args=(--new-from-rev="$base")
+  fi
   for module in gitcloneall gitpullall goget; do
-    (cd "$module" && ${lock[@]+"${lock[@]}"} golangci-lint run --new-from-rev="$base" ./...)
+    (cd "$module" && ${lock[@]+"${lock[@]}"} golangci-lint run ${lint_args[@]+"${lint_args[@]}"} ./...)
   done
 )
 
 while read -r _ local_oid _ remote_oid; do
-  [[ "$local_oid" =~ ^0+$ ]] && continue
-  check_ref "$(git rev-parse --verify "${local_oid}^{commit}")" "$remote_oid"
+  tip=$(git rev-parse -q --verify "${local_oid}^{commit}" 2>/dev/null) || continue
+  check_ref "$tip" "$remote_oid"
 done
